@@ -1,19 +1,29 @@
-import React, { useState } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView,
-  TextInput, TouchableOpacity, ActivityIndicator,
-} from 'react-native';
-import api from '@/services/api';
 import { Brand, Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import api from '@/services/api';
+import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
+import React, { useState } from 'react';
+import {
+  ActivityIndicator,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput, TouchableOpacity,
+  View,
+} from 'react-native';
 
-const FLOWS = [
-  { code: '1', label: 'Create Escrow', desc: 'Start a new trade' },
-  { code: '2', label: 'Pay',           desc: 'Fund a transaction' },
-  { code: '3', label: 'Confirm',       desc: 'Confirm delivery' },
-  { code: '4', label: 'Check Status',  desc: 'Look up a transaction' },
-  { code: '5', label: 'Dispute',       desc: 'Raise a dispute' },
-  { code: '6', label: 'Cancel',        desc: 'Cancel a pending trade' },
+type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
+
+const FLOWS: { num: string; label: string; desc: string; icon: IoniconName }[] = [
+  { num: '1', icon: 'lock-closed-outline', label: 'Create Escrow', desc: 'Start a new trade' },
+  { num: '2', icon: 'card-outline', label: 'Pay', desc: 'Fund a transaction' },
+  { num: '3', icon: 'checkmark-circle-outline', label: 'Confirm', desc: 'Confirm delivery' },
+  { num: '4', icon: 'search-outline', label: 'Check Status', desc: 'Look up a transaction' },
+  { num: '5', icon: 'warning-outline', label: 'Dispute', desc: 'Raise a dispute' },
+  { num: '6', icon: 'close-circle-outline', label: 'Cancel', desc: 'Cancel a pending trade' },
 ];
 
 export default function Explore() {
@@ -26,67 +36,72 @@ export default function Explore() {
 
   async function send(text: string) {
     if (!phone) return;
-    setMessages((m) => [...m, { from: 'you', text: text || '(empty)' }]);
+    setMessages((m) => [...m, { from: 'you', text: text || '(dial)' }]);
     setLoading(true);
     try {
       const res = await api.post('/ussd', { phone, text });
       setMessages((m) => [...m, { from: 'server', text: res.data.response }]);
     } catch {
-      setMessages((m) => [...m, { from: 'server', text: 'Error connecting to server' }]);
+      setMessages((m) => [...m, { from: 'server', text: 'Could not connect to server' }]);
     }
-    setInput('');
-    setLoading(false);
+    setInput(''); setLoading(false);
   }
-
-  function reset() { setMessages([]); setInput(''); }
 
   return (
     <ScrollView style={[styles.root, { backgroundColor: c.background }]} contentContainerStyle={{ paddingBottom: 40 }}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>📱 USSD Simulator</Text>
-        <Text style={styles.headerSub}>Test VeriTrade without a smartphone</Text>
-      </View>
+      <StatusBar barStyle="light-content" />
+      <LinearGradient colors={[Brand.primaryDark, '#1E40AF']} style={styles.header}>
+        <Ionicons name="keypad-outline" size={28} color="rgba(255,255,255,0.7)" style={{ marginBottom: 6 }} />
+        <Text style={styles.headerTitle}>USSD Service</Text>
+        <Text style={styles.headerSub}>Trade on any phone — no internet needed</Text>
+      </LinearGradient>
 
-      {/* Info card */}
-      <View style={[styles.infoCard, { backgroundColor: c.card }]}>
-        <Text style={styles.infoTitle}>Real Dial Code</Text>
-        <View style={styles.dialBox}>
-          <Text style={styles.dialCode}>*384*1#</Text>
+      {/* Dial code card */}
+      <BlurView intensity={30} tint="light" style={styles.dialCard}>
+        <View style={styles.dialRow}>
+          <Ionicons name="phone-portrait-outline" size={22} color={Brand.primary} />
+          <Text style={styles.dialLabel}>Real Dial Code (Ghana)</Text>
         </View>
-        <Text style={[styles.infoBody, { color: c.subtext }]}>
-          In production, users dial this code on any phone — smartphone or not — to access all escrow features without the app.
+        <LinearGradient colors={[Brand.primaryDark, Brand.primary]} style={styles.dialBox}>
+          <Text style={styles.dialCode}>*384*1#</Text>
+        </LinearGradient>
+        <Text style={[styles.dialNote, { color: c.subtext }]}>
+          Works on Vodafone, MTN, AirtelTigo — any Ghanaian SIM. No smartphone required.
         </Text>
-      </View>
+      </BlurView>
 
-      {/* Menu reference */}
+      {/* Menu options grid */}
       <Text style={[styles.section, { color: c.text }]}>Menu Options</Text>
-      <View style={styles.menuGrid}>
+      <View style={styles.grid}>
         {FLOWS.map((f) => (
-          <View key={f.code} style={[styles.menuItem, { backgroundColor: c.card }]}>
-            <View style={styles.menuNum}><Text style={styles.menuNumTxt}>{f.code}</Text></View>
-            <View>
-              <Text style={[styles.menuLabel, { color: c.text }]}>{f.label}</Text>
-              <Text style={[styles.menuDesc, { color: c.subtext }]}>{f.desc}</Text>
+          <BlurView key={f.num} intensity={28} tint="light" style={styles.gridItem}>
+            <View style={styles.gridNum}>
+              <Text style={styles.gridNumTxt}>{f.num}</Text>
             </View>
-          </View>
+            <Ionicons name={f.icon} size={18} color={Brand.primary} style={{ marginBottom: 4 }} />
+            <Text style={[styles.gridLabel, { color: c.text }]}>{f.label}</Text>
+            <Text style={[styles.gridDesc, { color: c.subtext }]}>{f.desc}</Text>
+          </BlurView>
         ))}
       </View>
 
-      {/* Simulator */}
+      {/* Live simulator */}
       <Text style={[styles.section, { color: c.text }]}>Live Simulator</Text>
-      <View style={[styles.simCard, { backgroundColor: c.card }]}>
-        <Text style={styles.simLabel}>Your Phone Number</Text>
-        <TextInput
-          style={[styles.input, { borderColor: c.border, color: c.text }]}
-          placeholder="+254 700 000 000"
-          placeholderTextColor="#9CA3AF"
-          keyboardType="phone-pad"
-          value={phone}
-          onChangeText={setPhone}
-        />
+      <BlurView intensity={28} tint="light" style={styles.simCard}>
+        <Text style={[styles.simLabel, { color: c.text }]}>Your Phone Number</Text>
+        <View style={[styles.inputWrap, { backgroundColor: c.card, borderColor: c.border }]}>
+          <Ionicons name="call-outline" size={16} color="#9CA3AF" style={{ marginRight: 8 }} />
+          <TextInput
+            style={[styles.input, { color: c.text }]}
+            placeholder="0XX XXX XXXX"
+            placeholderTextColor="#9CA3AF"
+            keyboardType="phone-pad"
+            value={phone}
+            onChangeText={setPhone}
+          />
+        </View>
 
-        {/* Chat messages */}
+        {/* Chat bubbles */}
         {messages.length > 0 && (
           <View style={styles.chat}>
             {messages.map((m, i) => (
@@ -102,67 +117,76 @@ export default function Explore() {
 
         {/* Start / send */}
         {messages.length === 0 ? (
-          <TouchableOpacity style={styles.startBtn} onPress={() => send('')} disabled={!phone}>
-            <Text style={styles.startBtnTxt}>▶ Start Session (dial *384*1#)</Text>
+          <TouchableOpacity style={[styles.startBtn, !phone && { opacity: 0.5 }]} onPress={() => send('')} disabled={!phone}>
+            <Ionicons name="play-circle-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
+            <Text style={styles.startBtnTxt}>Dial *384*1#</Text>
           </TouchableOpacity>
         ) : (
           <View style={styles.sendRow}>
-            <TextInput
-              style={[styles.sendInput, { borderColor: c.border, color: c.text }]}
-              placeholder="Type your option..."
-              placeholderTextColor="#9CA3AF"
-              value={input}
-              onChangeText={setInput}
-            />
+            <View style={[styles.sendInputWrap, { backgroundColor: c.card, borderColor: c.border }]}>
+              <TextInput
+                style={[styles.sendInput, { color: c.text }]}
+                placeholder="Type option number..."
+                placeholderTextColor="#9CA3AF"
+                value={input}
+                onChangeText={setInput}
+              />
+            </View>
             <TouchableOpacity style={styles.sendBtn} onPress={() => send(input)} disabled={loading}>
-              <Text style={styles.sendBtnTxt}>Send</Text>
+              <Ionicons name="send" size={18} color="#fff" />
             </TouchableOpacity>
           </View>
         )}
 
         {messages.length > 0 && (
-          <TouchableOpacity style={styles.resetBtn} onPress={reset}>
-            <Text style={styles.resetTxt}>↺ Reset Session</Text>
+          <TouchableOpacity style={styles.resetBtn} onPress={() => { setMessages([]); setInput(''); }}>
+            <Ionicons name="refresh-outline" size={14} color="#9CA3AF" style={{ marginRight: 4 }} />
+            <Text style={styles.resetTxt}>Reset Session</Text>
           </TouchableOpacity>
         )}
-      </View>
+      </BlurView>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  header: { backgroundColor: Brand.primaryDark, paddingTop: 56, paddingBottom: 24, paddingHorizontal: 24 },
+  header: { paddingTop: 56, paddingBottom: 28, paddingHorizontal: 24, alignItems: 'center' },
   headerTitle: { fontSize: 22, fontWeight: '800', color: '#fff' },
   headerSub: { color: 'rgba(255,255,255,0.7)', marginTop: 4, fontSize: 13 },
-  infoCard: { margin: 20, borderRadius: 16, padding: 20 },
-  infoTitle: { fontWeight: '700', color: Brand.primary, marginBottom: 12 },
-  dialBox: { backgroundColor: Brand.primary, borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 12 },
-  dialCode: { fontSize: 28, fontWeight: '900', color: '#fff', letterSpacing: 2 },
-  infoBody: { fontSize: 13, lineHeight: 20 },
-  section: { fontWeight: '700', fontSize: 16, paddingHorizontal: 20, marginBottom: 12, marginTop: 4 },
-  menuGrid: { paddingHorizontal: 20, gap: 8 },
-  menuItem: { flexDirection: 'row', alignItems: 'center', borderRadius: 12, padding: 14, gap: 12 },
-  menuNum: { width: 28, height: 28, borderRadius: 14, backgroundColor: Brand.accent, alignItems: 'center', justifyContent: 'center' },
-  menuNumTxt: { color: '#fff', fontWeight: '800', fontSize: 13 },
-  menuLabel: { fontWeight: '600', fontSize: 14 },
-  menuDesc: { fontSize: 12, marginTop: 1 },
-  simCard: { margin: 20, borderRadius: 16, padding: 20 },
-  simLabel: { fontWeight: '600', color: '#374151', fontSize: 13, marginBottom: 6 },
-  input: { borderWidth: 1.5, borderRadius: 12, padding: 14, fontSize: 15, marginBottom: 16 },
-  chat: { backgroundColor: '#F8FAFC', borderRadius: 12, padding: 12, marginBottom: 12, gap: 8 },
-  bubble: { maxWidth: '85%', borderRadius: 12, padding: 10 },
+  dialCard: { margin: 20, borderRadius: 20, padding: 20, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.5)' },
+  dialRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  dialLabel: { fontWeight: '700', color: Brand.primary },
+  dialBox: { borderRadius: 14, padding: 18, alignItems: 'center', marginBottom: 12 },
+  dialCode: { fontSize: 32, fontWeight: '900', color: '#fff', letterSpacing: 3 },
+  dialNote: { fontSize: 13, lineHeight: 20 },
+  section: { fontWeight: '700', fontSize: 16, paddingHorizontal: 20, marginBottom: 12 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 20, marginBottom: 8 },
+  gridItem: {
+    width: '47%', borderRadius: 16, padding: 14, overflow: 'hidden',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.5)', alignItems: 'center',
+  },
+  gridNum: { width: 24, height: 24, borderRadius: 12, backgroundColor: Brand.accent, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  gridNumTxt: { color: '#fff', fontWeight: '800', fontSize: 12 },
+  gridLabel: { fontWeight: '700', fontSize: 13, textAlign: 'center' },
+  gridDesc: { fontSize: 11, textAlign: 'center', marginTop: 2 },
+  simCard: { margin: 20, borderRadius: 20, padding: 20, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.5)' },
+  simLabel: { fontWeight: '600', fontSize: 13, marginBottom: 8 },
+  inputWrap: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, marginBottom: 16 },
+  input: { flex: 1, paddingVertical: 12, fontSize: 15 },
+  chat: { backgroundColor: 'rgba(0,0,0,0.04)', borderRadius: 14, padding: 12, marginBottom: 12, gap: 8 },
+  bubble: { maxWidth: '85%', borderRadius: 14, padding: 10 },
   bubbleServer: { alignSelf: 'flex-start', backgroundColor: '#EEF2FF' },
   bubbleYou: { alignSelf: 'flex-end', backgroundColor: Brand.accent },
-  bubbleTxt: { fontSize: 13, lineHeight: 18 },
+  bubbleTxt: { fontSize: 13, lineHeight: 19 },
   bubbleTxtServer: { color: Brand.black },
   bubbleTxtYou: { color: '#fff' },
-  startBtn: { backgroundColor: Brand.primary, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-  startBtnTxt: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  startBtn: { flexDirection: 'row', backgroundColor: Brand.primary, borderRadius: 14, paddingVertical: 14, alignItems: 'center', justifyContent: 'center' },
+  startBtnTxt: { color: '#fff', fontWeight: '700', fontSize: 15 },
   sendRow: { flexDirection: 'row', gap: 10 },
-  sendInput: { flex: 1, borderWidth: 1.5, borderRadius: 12, padding: 12, fontSize: 15 },
-  sendBtn: { backgroundColor: Brand.primary, borderRadius: 12, paddingHorizontal: 18, justifyContent: 'center' },
-  sendBtnTxt: { color: '#fff', fontWeight: '700' },
-  resetBtn: { alignItems: 'center', marginTop: 12 },
+  sendInputWrap: { flex: 1, flexDirection: 'row', borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12 },
+  sendInput: { flex: 1, paddingVertical: 12, fontSize: 15 },
+  sendBtn: { backgroundColor: Brand.primary, borderRadius: 12, width: 48, alignItems: 'center', justifyContent: 'center' },
+  resetBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 12 },
   resetTxt: { color: '#9CA3AF', fontSize: 13 },
 });

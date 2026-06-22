@@ -581,3 +581,194 @@ Once you're comfortable with the codebase, here is the natural progression:
 5. **KYC verification** — require ID upload before allowing transactions above a threshold
 6. **Admin dashboard** — a web interface to review disputes
 7. **Deploy** — follow `DEPLOYMENT.md`
+
+---
+
+## 13. Moolre — Real Mobile Money Payments (Ghana)
+
+Right now when a buyer "pays", the app just changes a status field. In production, you want
+**real money** moving through Ghana's mobile money networks (MTN MoMo, Vodafone Cash, AirtelTigo Money).
+
+That's where **Moolre** comes in.
+
+### What is Moolre?
+
+Moolre is a Ghanaian payment gateway that lets your app collect money from any MoMo wallet
+with a simple API call. Instead of building integrations with MTN, Vodafone, and AirtelTigo
+separately, Moolre gives you one API that works with all of them.
+
+Website: [moolre.com](https://moolre.com)
+
+---
+
+### How It Fits Into VeriTrade
+
+```
+Buyer taps "Pay" in the app
+  ↓
+App calls  POST /api/moolre/pay  { transactionCode, phone, network }
+  ↓
+Backend calls Moolre API → Moolre sends a MoMo prompt to buyer's phone
+  ↓
+Buyer enters PIN on their phone to approve
+  ↓
+Moolre sends a webhook to  POST /api/moolre/webhook
+  ↓
+Backend verifies the webhook signature (HMAC-SHA256)
+  ↓
+Transaction status changes from PENDING → PAID  ✅
+```
+
+The buyer never leaves the app. The MoMo PIN prompt appears on their phone automatically.
+
+---
+
+### The Three Backend Files
+
+#### `backend/src/services/moolre.service.js`
+
+Contains the low-level API calls:
+
+| Function | What it does |
+|----------|-------------|
+| `initiateCollection(params)` | Sends a payment request to Moolre. Moolre then prompts the customer's phone. |
+| `checkStatus(reference)` | Polls Moolre for the current payment status of a transaction. |
+| `verifyWebhookSignature(body, sig)` | Checks that an incoming webhook is genuinely from Moolre (not a fake request). Uses HMAC-SHA256. |
+
+#### `backend/src/controllers/moolre.controller.js`
+
+Contains the route handlers:
+
+| Handler | Route | What it does |
+|---------|-------|-------------|
+| `initiatePay` | `POST /api/moolre/pay` | Looks up the transaction, calls Moolre to request payment from the buyer's MoMo. |
+| `status` | `GET /api/moolre/status/:reference` | Returns the current payment status from Moolre. |
+| `webhook` | `POST /api/moolre/webhook` | Called automatically by Moolre when payment is confirmed. Updates transaction to PAID. |
+
+#### `backend/src/routes/moolre.routes.js`
+
+Registers the URLs. The `/webhook` route has **no JWT auth** — it's called by Moolre's servers,
+not the mobile app. Instead it uses the HMAC signature to verify authenticity.
+
+---
+
+### Environment Variables Required
+
+Add these to `backend/.env`:
+
+```env
+MOOLRE_API_KEY=your_api_key_from_moolre_dashboard
+MOOLRE_URL=https://api.moolre.com/v1
+MOOLRE_WEBHOOK_SECRET=your_webhook_secret_from_moolre_dashboard
+APP_BASE_URL=https://your-deployed-backend-url.railway.app
+```
+
+- `MOOLRE_API_KEY` — from your Moolre dashboard after signing up
+- `MOOLRE_WEBHOOK_SECRET` — used to verify webhook signatures (prevents fake webhooks)
+- `APP_BASE_URL` — your live backend URL, so Moolre knows where to send the webhook
+
+---
+
+### Getting Your API Keys
+
+1. Sign up at [moolre.com](https://moolre.com)
+2. Go to **Dashboard → API Keys**
+3. Copy your **API Key** → paste into `MOOLRE_API_KEY`
+4. Go to **Webhooks → Create Webhook**
+5. Set URL: `https://your-backend.railway.app/api/moolre/webhook`
+6. Copy the **Webhook Secret** → paste into `MOOLRE_WEBHOOK_SECRET`
+
+---
+
+### What Happens With the `initiatePay` Request
+
+When the mobile app calls `POST /api/moolre/pay`:
+
+```json
+{
+  "transactionCode": "483921",
+  "phone": "0244000001",
+  "network": "MTN"
+}
+```
+
+The backend builds this payload and sends it to Moolre:
+
+```json
+{
+  "phone": "0244000001",
+  "amount": 450.00,
+  "currency": "GHS",
+  "reference": "483921",
+  "narration": "VeriTrade Escrow: iPhone 15",
+  "network": "MTN",
+  "callback_url": "https://your-backend.railway.app/api/moolre/webhook"
+}
+```
+
+The customer's phone receives a MoMo prompt like:
+```
+MTN Mobile Money
+Pay GHS 450.00 to VeriTrade Escrow: iPhone 15
+Enter PIN to confirm
+```
+
+---
+
+### The Webhook — Most Important Part
+
+After the customer enters their PIN, Moolre sends a POST to your webhook URL:
+
+```json
+{
+  "reference": "483921",
+  "status": "SUCCESS",
+  "amount": 450.00,
+  "phone": "0244000001",
+  "network": "MTN",
+  "timestamp": "2026-06-22T00:30:00Z"
+}
+```
+
+Your backend:
+1. Reads the `x-moolre-signature` header
+2. Runs HMAC-SHA256 on the raw request body using your `MOOLRE_WEBHOOK_SECRET`
+3. Compares — if they match, the webhook is genuine
+4. Updates the transaction to `PAID`
+
+If the signature doesn't match, the request is rejected with a 400 error. This protects you
+from someone sending fake "payment confirmed" messages to your webhook.
+
+---
+
+### Testing Without Real Money
+
+Moolre provides a **sandbox environment** for testing. Use sandbox credentials from your
+dashboard and set:
+
+```env
+MOOLRE_URL=https://sandbox.moolre.com/v1
+```
+
+In sandbox mode, no real money moves. You can simulate successful and failed payments.
+
+---
+
+### Mobile App Integration (Future)
+
+To wire the "Pay" button in the app to real Moolre payments, update
+`mobile/app/(tabs)/transactions.tsx` — replace the `api.post('/escrow/pay', ...)` call
+for PENDING transactions with:
+
+```ts
+// Instead of:
+await api.post('/escrow/pay', { transactionCode: tx.transaction_code });
+
+// Use:
+await api.post('/moolre/pay', {
+  transactionCode: tx.transaction_code,
+  phone: user.phone,        // buyer's phone from useAuth()
+  network: 'MTN',           // or let user pick
+});
+// Transaction will move to PAID automatically when Moolre webhook fires
+```

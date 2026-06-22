@@ -1,1 +1,12 @@
-[]
+[
+  {
+    "id": 1,
+    "transaction_code": "742857",
+    "buyer_id": 2,
+    "seller_id": 2,
+    "item_description": "Laptop",
+    "amount": 2,
+    "status": "PENDING",
+    "created_at": "2026-06-22T00:33:07.830Z"
+  }
+]

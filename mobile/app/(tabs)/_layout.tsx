@@ -1,79 +1,92 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { View, Text, StyleSheet, Platform } from 'react-native';
+import { View, StyleSheet, Platform } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import { Brand, Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
-function TabIcon({ emoji, label, focused }: { emoji: string; label: string; focused: boolean }) {
+function TabIcon({ name, focused }: { name: React.ComponentProps<typeof Ionicons>['name']; focused: boolean }) {
   return (
-    <View style={[styles.tabItem, focused && styles.tabItemActive]}>
-      <Text style={styles.tabEmoji}>{emoji}</Text>
-      <Text style={[styles.tabLabel, focused && styles.tabLabelActive]}>{label}</Text>
-    </View>
+    <Ionicons
+      name={name}
+      size={24}
+      color={focused ? Brand.primary : '#9CA3AF'}
+    />
   );
 }
 
-function CreateButton({ emoji, focused }: { emoji: string; focused: boolean }) {
+function CreateIcon({ focused }: { focused: boolean }) {
   return (
-    <View style={styles.createOuter}>
-      <View style={[styles.createInner, focused && styles.createInnerActive]}>
-        <Text style={{ fontSize: 22 }}>{emoji}</Text>
-      </View>
+    <View style={[styles.createBtn, focused && styles.createBtnActive]}>
+      <Ionicons name="add" size={28} color="#fff" />
     </View>
   );
 }
 
 export default function TabLayout() {
   const scheme = useColorScheme();
-  const colors = Colors[scheme ?? 'light'];
+  const c = Colors[scheme ?? 'light'];
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarShowLabel: false,
+        tabBarShowLabel: true,
+        tabBarActiveTintColor: Brand.primary,
+        tabBarInactiveTintColor: '#9CA3AF',
         tabBarStyle: {
           height: Platform.OS === 'ios' ? 84 : 68,
           paddingBottom: Platform.OS === 'ios' ? 20 : 8,
-          backgroundColor: colors.tabBar,
+          paddingTop: 6,
+          backgroundColor: c.tabBar,
           borderTopWidth: 1,
-          borderTopColor: colors.border,
-          elevation: 12,
-          shadowColor: '#000',
-          shadowOpacity: 0.08,
-          shadowRadius: 8,
-          shadowOffset: { width: 0, height: -2 },
+          borderTopColor: c.border,
+          elevation: 0,
         },
+        tabBarBackground: () => (
+          <BlurView
+            intensity={60}
+            tint={scheme === 'dark' ? 'dark' : 'light'}
+            style={StyleSheet.absoluteFill}
+          />
+        ),
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          tabBarIcon: ({ focused }) => <TabIcon emoji="🏠" label="Home" focused={focused} />,
+          title: 'Home',
+          tabBarIcon: ({ focused }) => <TabIcon name={focused ? 'home' : 'home-outline'} focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="transactions"
         options={{
-          tabBarIcon: ({ focused }) => <TabIcon emoji="📋" label="Activity" focused={focused} />,
+          title: 'Activity',
+          tabBarIcon: ({ focused }) => <TabIcon name={focused ? 'receipt' : 'receipt-outline'} focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="create-escrow"
         options={{
-          tabBarIcon: ({ focused }) => <CreateButton emoji="➕" focused={focused} />,
+          title: '',
+          tabBarLabel: () => null,
+          tabBarIcon: ({ focused }) => <CreateIcon focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="explore"
         options={{
-          tabBarIcon: ({ focused }) => <TabIcon emoji="📱" label="USSD" focused={focused} />,
+          title: 'USSD',
+          tabBarIcon: ({ focused }) => <TabIcon name={focused ? 'keypad' : 'keypad-outline'} focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          tabBarIcon: ({ focused }) => <TabIcon emoji="👤" label="Profile" focused={focused} />,
+          title: 'Profile',
+          tabBarIcon: ({ focused }) => <TabIcon name={focused ? 'person-circle' : 'person-circle-outline'} focused={focused} />,
         }}
       />
     </Tabs>
@@ -81,19 +94,15 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-  tabItem: { alignItems: 'center', paddingTop: 4 },
-  tabItemActive: {},
-  tabEmoji: { fontSize: 20 },
-  tabLabel: { fontSize: 10, marginTop: 2, color: '#9CA3AF', fontWeight: '500' },
-  tabLabelActive: { color: Brand.primary, fontWeight: '700' },
-  createOuter: { alignItems: 'center', justifyContent: 'center', marginTop: -20 },
-  createInner: {
+  createBtn: {
     width: 56, height: 56, borderRadius: 28,
     backgroundColor: Brand.accent,
     alignItems: 'center', justifyContent: 'center',
-    shadowColor: Brand.accent, shadowOpacity: 0.45,
-    shadowRadius: 10, shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
+    marginBottom: Platform.OS === 'ios' ? 10 : 16,
+    shadowColor: Brand.accent,
+    shadowOpacity: 0.5, shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 10,
   },
-  createInnerActive: { backgroundColor: Brand.accentDark },
+  createBtnActive: { backgroundColor: Brand.accentDark },
 });
