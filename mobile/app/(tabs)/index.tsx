@@ -7,10 +7,12 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import useAuth from '@/hooks/useAuth';
 import api from '@/services/api';
 import { Brand, Colors, Currency } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import TooltipOverlay from '@/components/tooltip-overlay';
 
 const STATUS_COLOR: Record<string, string> = {
   PENDING: Brand.warning,
@@ -36,6 +38,7 @@ export default function HomeScreen() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState({ total: 0, active: 0, completed: 0 });
+  const [showTooltip, setShowTooltip] = useState(false);
 
   async function load() {
     try {
@@ -50,12 +53,24 @@ export default function HomeScreen() {
     } catch {}
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    AsyncStorage.getItem('tooltipSeen').then((seen) => {
+      if (!seen) setShowTooltip(true);
+    });
+  }, []);
+
   async function onRefresh() { setRefreshing(true); await load(); setRefreshing(false); }
+
+  async function handleTooltipDone() {
+    await AsyncStorage.setItem('tooltipSeen', 'true');
+    setShowTooltip(false);
+  }
 
   return (
     <View style={[styles.root, { backgroundColor: c.background }]}>
       <StatusBar barStyle="light-content" />
+      <TooltipOverlay visible={showTooltip} onDone={handleTooltipDone} />
 
       {/* Gradient header */}
       <LinearGradient colors={[Brand.primaryDark, Brand.primary]} style={styles.header}>

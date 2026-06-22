@@ -3,16 +3,13 @@ import React from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Brand, Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 function TabIcon({ name, focused }: { name: React.ComponentProps<typeof Ionicons>['name']; focused: boolean }) {
   return (
-    <Ionicons
-      name={name}
-      size={24}
-      color={focused ? Brand.primary : '#9CA3AF'}
-    />
+    <Ionicons name={name} size={24} color={focused ? Brand.primary : '#9CA3AF'} />
   );
 }
 
@@ -27,6 +24,10 @@ function CreateIcon({ focused }: { focused: boolean }) {
 export default function TabLayout() {
   const scheme = useColorScheme();
   const c = Colors[scheme ?? 'light'];
+  const insets = useSafeAreaInsets();
+
+  // Height = icon + label + bottom safe area (system nav bar)
+  const tabBarHeight = 56 + insets.bottom;
 
   return (
     <Tabs
@@ -36,8 +37,8 @@ export default function TabLayout() {
         tabBarActiveTintColor: Brand.primary,
         tabBarInactiveTintColor: '#9CA3AF',
         tabBarStyle: {
-          height: Platform.OS === 'ios' ? 84 : 68,
-          paddingBottom: Platform.OS === 'ios' ? 20 : 8,
+          height: tabBarHeight,
+          paddingBottom: insets.bottom,
           paddingTop: 6,
           backgroundColor: c.tabBar,
           borderTopWidth: 1,
@@ -76,6 +77,13 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="bot"
+        options={{
+          title: 'VeriBot',
+          tabBarIcon: ({ focused }) => <TabIcon name={focused ? 'hardware-chip' : 'hardware-chip-outline'} focused={focused} />,
+        }}
+      />
+      <Tabs.Screen
         name="explore"
         options={{
           title: 'USSD',
@@ -98,7 +106,7 @@ const styles = StyleSheet.create({
     width: 56, height: 56, borderRadius: 28,
     backgroundColor: Brand.accent,
     alignItems: 'center', justifyContent: 'center',
-    marginBottom: Platform.OS === 'ios' ? 10 : 16,
+    marginBottom: 8,
     shadowColor: Brand.accent,
     shadowOpacity: 0.5, shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
