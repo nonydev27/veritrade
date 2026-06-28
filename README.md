@@ -1,6 +1,6 @@
 # VeriTrade — Executive Project Summary
 **Product:** VeriTrade  
-**Author:** Karl Djansi  
+**Author:** Karl Djansi, Malcolm Texson Nettey, Akachukwu Favour  
 **Document Type:** Executive Summary & Technical Overview  
 **Status:** Approved Blueprint  
 **Target Architecture:** Mobile (React Native) + USSD (Moolre API)  
