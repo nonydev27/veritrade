@@ -1,14 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
-  KeyboardAvoidingView, Platform, ActivityIndicator, ScrollView, StatusBar,
+  View, Text, TouchableOpacity, StyleSheet, StatusBar,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import useAuth from '@/hooks/useAuth';
 import { Brand } from '@/constants/theme';
+import { KeyboardAwareView } from '@/components/KeyboardAwareView';
+import { GlassCard } from '@/components/GlassCard';
+import { GlassInput } from '@/components/GlassInput';
+import { GlassButton } from '@/components/GlassButton';
+import { ScreenBackground } from '@/components/ScreenBackground';
+import {
+  isGhanaPhone, formatGhanaPhone, getPasswordStrength, STRENGTH_META,
+} from '@/utils/validation';
+import { SPACING } from '@/constants/layout';
 
 export default function Register() {
   const router = useRouter();
@@ -20,63 +28,102 @@ export default function Register() {
   const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [touched, setTouched] = useState({ phone: false, password: false });
+
+  const strength = useMemo(() => getPasswordStrength(password), [password]);
+  const strengthMeta = STRENGTH_META[strength];
+  const phoneValid = isGhanaPhone(phone.replace(/\s/g, ''));
+  const phoneError = touched.phone && phone.length > 0 && !phoneValid;
 
   async function onRegister() {
-    if (!name || !phone || !password) { setError('Fill in all fields'); return; }
+    if (!name.trim()) { setError('Enter your full name'); return; }
+    if (!phoneValid) { setError('Enter a valid Ghana phone (e.g. 0241234567)'); return; }
     if (password.length < 6) { setError('Password must be at least 6 characters'); return; }
-    setError(''); setLoading(true);
+    setError('');
+    setLoading(true);
     try {
-      await register(name, phone, password, role);
+      await register(name.trim(), phone.replace(/\s/g, ''), password, role);
       router.replace('/(tabs)');
     } catch (e: any) {
-      setError(e?.message || 'Registration failed');
-    } finally { setLoading(false); }
+      setError(e?.response?.data?.error || e?.message || 'Registration failed');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
-    <LinearGradient colors={[Brand.primaryDark, '#1E40AF', Brand.primary]} style={styles.root}>
+    <ScreenBackground>
       <StatusBar barStyle="light-content" />
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
-
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        <KeyboardAwareView contentContainerStyle={styles.keyboardContent}>
           <View style={styles.logoArea}>
-            <BlurView intensity={25} tint="light" style={styles.logoIcon}>
-              <Ionicons name="person-add" size={36} color="#fff" />
-            </BlurView>
+            <LinearGradient colors={['#1A56DB', '#7C3AED']} style={styles.logoIcon}>
+              <Ionicons name="person-add" size={32} color="#fff" />
+            </LinearGradient>
             <Text style={styles.logoTxt}>Create Account</Text>
             <Text style={styles.logoSub}>Join VeriTrade — Ghana's trusted escrow</Text>
           </View>
 
-          <BlurView intensity={28} tint="light" style={styles.card}>
+          <GlassCard tint="dark" style={styles.card}>
+            <LinearGradient
+              colors={['#7C3AED', '#F97316']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.cardAccentLine}
+            />
+
             {error ? (
               <View style={styles.errorRow}>
-                <Ionicons name="alert-circle" size={15} color={Brand.error} />
+                <Ionicons name="alert-circle" size={15} color="#F97316" />
                 <Text style={styles.errorTxt}>{error}</Text>
               </View>
             ) : null}
 
-            {/* Name */}
-            <View style={styles.inputWrap}>
-              <Ionicons name="person-outline" size={18} color="#9CA3AF" style={styles.inputIcon} />
-              <TextInput style={styles.input} placeholder="Full Name" placeholderTextColor="#9CA3AF" value={name} onChangeText={setName} />
-            </View>
+            <GlassInput
+              icon="person-outline"
+              placeholder="Full Name"
+              value={name}
+              onChangeText={setName}
+              autoCapitalize="words"
+            />
 
-            {/* Phone */}
-            <View style={styles.inputWrap}>
-              <Ionicons name="call-outline" size={18} color="#9CA3AF" style={styles.inputIcon} />
-              <TextInput style={styles.input} placeholder="0XX XXX XXXX" placeholderTextColor="#9CA3AF" keyboardType="phone-pad" value={phone} onChangeText={setPhone} />
-            </View>
+            <GlassInput
+              icon="call-outline"
+              placeholder="024 XXX XXXX"
+              keyboardType="phone-pad"
+              value={phone}
+              onChangeText={(t) => setPhone(formatGhanaPhone(t))}
+              onBlur={() => setTouched((p) => ({ ...p, phone: true }))}
+              maxLength={12}
+              error={phoneError}
+            />
+            {phoneError ? <Text style={styles.fieldError}>Use Ghana format: 024XXXXXXX</Text> : null}
 
-            {/* Password */}
-            <View style={styles.inputWrap}>
-              <Ionicons name="lock-closed-outline" size={18} color="#9CA3AF" style={styles.inputIcon} />
-              <TextInput style={[styles.input, { flex: 1 }]} placeholder="Min 6 characters" placeholderTextColor="#9CA3AF" secureTextEntry={!show} value={password} onChangeText={setPassword} />
-              <TouchableOpacity onPress={() => setShow(!show)}>
-                <Ionicons name={show ? 'eye-off-outline' : 'eye-outline'} size={18} color="#9CA3AF" />
+            <View style={styles.passwordRow}>
+              <GlassInput
+                icon="lock-closed-outline"
+                placeholder="Min 6 characters"
+                secureTextEntry={!show}
+                value={password}
+                onChangeText={setPassword}
+                onBlur={() => setTouched((p) => ({ ...p, password: true }))}
+                containerStyle={styles.passwordInput}
+                error={touched.password && password.length > 0 && password.length < 6}
+              />
+              <TouchableOpacity style={styles.eyeBtn} onPress={() => setShow(!show)} hitSlop={8}>
+                <Ionicons name={show ? 'eye-off-outline' : 'eye-outline'} size={18} color="rgba(255,255,255,0.4)" />
               </TouchableOpacity>
             </View>
 
-            {/* Role picker */}
+            {password.length > 0 && (
+              <View style={styles.strengthWrap}>
+                <View style={styles.strengthTrack}>
+                  <View style={[styles.strengthFill, { width: strengthMeta.width as `${number}%`, backgroundColor: strengthMeta.color }]} />
+                </View>
+                <Text style={[styles.strengthLabel, { color: strengthMeta.color }]}>{strengthMeta.label}</Text>
+              </View>
+            )}
+
             <Text style={styles.roleLabel}>I am a</Text>
             <View style={styles.roleRow}>
               {(['BUYER', 'SELLER'] as const).map((r) => (
@@ -88,7 +135,7 @@ export default function Register() {
                   <Ionicons
                     name={r === 'BUYER' ? 'cart-outline' : 'cube-outline'}
                     size={20}
-                    color={role === r ? Brand.primary : '#9CA3AF'}
+                    color={role === r ? '#fff' : 'rgba(255,255,255,0.5)'}
                   />
                   <Text style={[styles.roleTxt, role === r && styles.roleTxtActive]}>
                     {r === 'BUYER' ? 'Buyer' : 'Seller'}
@@ -97,67 +144,58 @@ export default function Register() {
               ))}
             </View>
 
-            <TouchableOpacity style={styles.btn} onPress={onRegister} disabled={loading}>
-              {loading
-                ? <ActivityIndicator color="#fff" />
-                : <>
-                    <Ionicons name="checkmark-circle-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
-                    <Text style={styles.btnTxt}>Create Account</Text>
-                  </>
-              }
-            </TouchableOpacity>
+            <GlassButton label="Create Account" icon="checkmark-circle-outline" onPress={onRegister} loading={loading} />
 
             <TouchableOpacity style={styles.link} onPress={() => router.push('/login')}>
               <Text style={styles.linkTxt}>Already have an account? </Text>
               <Text style={styles.linkBold}>Sign in</Text>
             </TouchableOpacity>
-          </BlurView>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </LinearGradient>
+          </GlassCard>
+        </KeyboardAwareView>
+      </SafeAreaView>
+    </ScreenBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
-  inner: { flexGrow: 1, justifyContent: 'center', padding: 24, paddingBottom: 40 },
-  logoArea: { alignItems: 'center', marginBottom: 28 },
+  safe: { flex: 1 },
+  keyboardContent: { paddingHorizontal: SPACING.lg, paddingTop: SPACING.md },
+  logoArea: { alignItems: 'center', marginBottom: 24 },
   logoIcon: {
     width: 72, height: 72, borderRadius: 22, alignItems: 'center',
-    justifyContent: 'center', marginBottom: 10, overflow: 'hidden',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)',
+    justifyContent: 'center', marginBottom: 12,
+    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.15)',
   },
   logoTxt: { fontSize: 26, fontWeight: '900', color: '#fff' },
-  logoSub: { color: 'rgba(255,255,255,0.65)', fontSize: 13, marginTop: 4 },
-  card: {
-    borderRadius: 28, padding: 24, overflow: 'hidden',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)',
+  logoSub: { color: 'rgba(255,255,255,0.55)', fontSize: 13, marginTop: 4 },
+  card: { borderColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 22, paddingBottom: 24 },
+  cardAccentLine: { height: 3, marginBottom: 20, borderRadius: 2, marginHorizontal: -22, marginTop: -16 },
+  errorRow: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: 'rgba(239,68,68,0.15)',
+    borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)',
+    padding: 10, borderRadius: 10, marginBottom: 14, gap: 6,
   },
-  errorRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEE2E2', padding: 10, borderRadius: 10, marginBottom: 12, gap: 6 },
   errorTxt: { color: Brand.error, fontSize: 13, flex: 1 },
-  inputWrap: {
-    flexDirection: 'row', alignItems: 'center', borderWidth: 1.5,
-    borderColor: 'rgba(0,0,0,0.08)', borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.6)', paddingHorizontal: 12, marginBottom: 12,
-  },
-  inputIcon: { marginRight: 8 },
-  input: { flex: 1, paddingVertical: 13, fontSize: 15, color: Brand.black },
-  roleLabel: { fontWeight: '600', color: '#374151', fontSize: 13, marginBottom: 8 },
+  fieldError: { color: Brand.error, fontSize: 12, marginTop: -8, marginBottom: 10, marginLeft: 4 },
+  passwordRow: { position: 'relative' },
+  passwordInput: { paddingRight: 44 },
+  eyeBtn: { position: 'absolute', right: 14, top: 15, zIndex: 1 },
+  strengthWrap: { marginBottom: 14, marginTop: -4 },
+  strengthTrack: { height: 4, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 2, overflow: 'hidden' },
+  strengthFill: { height: '100%', borderRadius: 2 },
+  strengthLabel: { fontSize: 11, fontWeight: '600', marginTop: 4, textAlign: 'right' },
+  roleLabel: { fontWeight: '600', color: 'rgba(255,255,255,0.6)', fontSize: 13, marginBottom: 8 },
   roleRow: { flexDirection: 'row', gap: 10, marginBottom: 18 },
   roleBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 8, borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.1)', borderRadius: 14,
-    paddingVertical: 13, backgroundColor: 'rgba(255,255,255,0.6)',
+    gap: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', borderRadius: 14,
+    paddingVertical: 13, backgroundColor: 'rgba(255,255,255,0.06)',
   },
-  roleBtnActive: { borderColor: Brand.primary, backgroundColor: '#EEF2FF' },
-  roleTxt: { fontWeight: '600', color: '#9CA3AF', fontSize: 14 },
-  roleTxtActive: { color: Brand.primary },
-  btn: {
-    flexDirection: 'row', backgroundColor: Brand.primary, borderRadius: 14,
-    paddingVertical: 15, alignItems: 'center', justifyContent: 'center',
-  },
-  btnTxt: { color: '#fff', fontWeight: '800', fontSize: 16 },
-  link: { flexDirection: 'row', justifyContent: 'center', marginTop: 16 },
-  linkTxt: { color: '#6B7280', fontSize: 14 },
-  linkBold: { color: Brand.primary, fontWeight: '700', fontSize: 14 },
+  roleBtnActive: { borderColor: Brand.primaryLight, backgroundColor: 'rgba(26,86,219,0.25)' },
+  roleTxt: { fontWeight: '600', color: 'rgba(255,255,255,0.5)', fontSize: 14 },
+  roleTxtActive: { color: '#fff' },
+  link: { flexDirection: 'row', justifyContent: 'center', marginTop: 18 },
+  linkTxt: { color: 'rgba(255,255,255,0.45)', fontSize: 14 },
+  linkBold: { color: '#3B82F6', fontWeight: '700', fontSize: 14 },
 });

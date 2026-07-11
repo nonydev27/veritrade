@@ -60,4 +60,33 @@ function verifyWebhookSignature(rawBody, signature) {
   }
 }
 
-module.exports = { initiateCollection, checkStatus, verifyWebhookSignature };
+/**
+ * Disburse funds to a seller via Moolre payout API.
+ * Called after buyer confirms delivery (transaction COMPLETED).
+ * @param {Object} params
+ * @param {string} params.phone      - Seller's mobile money number e.g. "0244000001"
+ * @param {number} params.amount     - Amount in GHS
+ * @param {string} params.reference  - Transaction code (for reconciliation)
+ * @param {string} params.narration  - Description shown to seller e.g. "VeriTrade payout: iPhone 15"
+ * @param {string} params.network    - "MTN" | "VODAFONE" | "AIRTELTIGO"
+ */
+async function disbursePayout({ phone, amount, reference, narration, network }) {
+  const payload = {
+    phone,
+    amount,
+    currency: 'GHS',
+    reference: `PAYOUT-${reference}`,
+    narration,
+    network,
+  };
+  const resp = await axios.post(`${BASE}/payouts/initiate`, payload, {
+    headers: {
+      Authorization: `Bearer ${KEY}`,
+      'Content-Type': 'application/json',
+    },
+    timeout: 15000,
+  });
+  return resp.data;
+}
+
+module.exports = { initiateCollection, checkStatus, verifyWebhookSignature, disbursePayout };

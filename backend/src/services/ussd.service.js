@@ -25,13 +25,13 @@ async function handleUssd(phone, text) {
   }
 
   // ─── CREATE ────────────────────────────────────────────────────
-  if (s.step === 'CREATE_ITEM') { s.data.item = text; s.step = 'CREATE_AMOUNT'; return reply('Enter amount (KES)'); }
+  if (s.step === 'CREATE_ITEM') { s.data.item = text; s.step = 'CREATE_AMOUNT'; return reply('Enter amount (GHS)'); }
   if (s.step === 'CREATE_AMOUNT') { s.data.amount = text; s.step = 'CREATE_SELLER'; return reply('Enter seller phone'); }
   if (s.step === 'CREATE_SELLER') {
     try {
       const tx = await local.addTransaction({ transaction_code: rand(), buyer_id: null, seller_id: null, item_description: s.data.item, amount: parseFloat(s.data.amount), status: 'PENDING' });
       clear(phone);
-      return reply(`Escrow Created!\nCode: ${tx.transaction_code}\nAmount: KES ${tx.amount}\nShare code with seller.`);
+      return reply(`Escrow Created!\nCode: ${tx.transaction_code}\nAmount: GHS ${tx.amount}\nShare code with seller.`);
     } catch { clear(phone); return reply('Failed. Try again.'); }
   }
 
@@ -40,9 +40,8 @@ async function handleUssd(phone, text) {
     const tx = await local.findTransactionByCode(text);
     clear(phone);
     if (!tx) return reply('Transaction not found.');
-    if (tx.status !== 'PENDING') return reply(`Cannot pay. Status: ${tx.status}`);
-    await local.updateTransactionStatus(tx.id, 'PAID');
-    return reply(`Paid!\nCode: ${tx.transaction_code}\nAmount: KES ${tx.amount}\nStatus: PAID`);
+    if (tx.status !== 'ACCEPTED') return reply(`Cannot pay. Seller must accept first. Status: ${tx.status}`);
+    return reply(`To pay, use the VeriTrade app.\nCode: ${tx.transaction_code}\nAmount: GHS ${tx.amount}`);
   }
 
   // ─── CONFIRM ───────────────────────────────────────────────────
@@ -50,9 +49,8 @@ async function handleUssd(phone, text) {
     const tx = await local.findTransactionByCode(text);
     clear(phone);
     if (!tx) return reply('Transaction not found.');
-    if (tx.status !== 'PAID') return reply(`Cannot confirm. Status: ${tx.status}`);
-    await local.updateTransactionStatus(tx.id, 'COMPLETED');
-    return reply(`Delivery Confirmed!\nCode: ${tx.transaction_code}\nFunds released to seller.`);
+    if (tx.status !== 'SHIPPED') return reply(`Cannot confirm. Status: ${tx.status}`);
+    return reply(`To confirm delivery, enter your PIN in the VeriTrade app.\nCode: ${tx.transaction_code}`);
   }
 
   // ─── STATUS ────────────────────────────────────────────────────
@@ -60,7 +58,7 @@ async function handleUssd(phone, text) {
     const tx = await local.findTransactionByCode(text);
     clear(phone);
     if (!tx) return reply('Transaction not found.');
-    return reply(`Code: ${tx.transaction_code}\nItem: ${tx.item_description}\nAmount: KES ${tx.amount}\nStatus: ${tx.status}`);
+    return reply(`Code: ${tx.transaction_code}\nItem: ${tx.item_description}\nAmount: GHS ${tx.amount}\nStatus: ${tx.status}`);
   }
 
   // ─── DISPUTE ───────────────────────────────────────────────────
@@ -69,7 +67,7 @@ async function handleUssd(phone, text) {
     const tx = await local.findTransactionByCode(s.data.dispute_code);
     clear(phone);
     if (!tx) return reply('Transaction not found.');
-    if (!['PAID', 'PENDING'].includes(tx.status)) return reply(`Cannot dispute. Status: ${tx.status}`);
+    if (!['FUNDED', 'SHIPPED', 'ACCEPTED'].includes(tx.status)) return reply(`Cannot dispute. Status: ${tx.status}`);
     await local.updateTransactionStatus(tx.id, 'DISPUTED');
     await local.addDispute({ transaction_id: tx.id, reason: text });
     return reply(`Dispute Raised!\nCode: ${tx.transaction_code}\nReason: ${text}\nOur team will review within 24h.`);

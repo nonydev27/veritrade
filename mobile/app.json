@@ -9,9 +9,16 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
+      }
     },
     "android": {
+      "usesCleartextTraffic": true,
+      "softwareKeyboardLayoutMode": "resize",
       "package": "com.nonydev27.veritrade",
       "adaptiveIcon": {
         "backgroundColor": "#1A56DB",

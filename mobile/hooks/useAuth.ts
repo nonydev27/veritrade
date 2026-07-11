@@ -11,7 +11,13 @@ export default function useAuth() {
       const t = await AsyncStorage.getItem('token');
       const u = await AsyncStorage.getItem('user');
       if (t) setToken(t);
-      if (u) setUser(JSON.parse(u));
+      if (u) {
+        try {
+          setUser(JSON.parse(u));
+        } catch {
+          await AsyncStorage.removeItem('user');
+        }
+      }
     })();
   }, []);
 

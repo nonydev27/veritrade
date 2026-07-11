@@ -46,3 +46,14 @@ export const Currency = {
   symbol: '₵',
   name: 'Ghana Cedi',
 };
+
+export const GlassTheme = {
+  intensity: 60,
+  tint: 'light' as const,
+  background: 'rgba(255,255,255,0.12)',
+  border: 'rgba(255,255,255,0.2)',
+  borderWidth: 1,
+  borderRadius: 16,
+  padding: 16,
+  screenPadding: 20,
+};

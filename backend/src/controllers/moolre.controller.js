@@ -23,7 +23,7 @@ async function initiatePay(req, res) {
       tx = r.rows[0];
     }
     if (!tx) return res.status(404).json({ error: 'transaction not found' });
-    if (tx.status !== 'PENDING') return res.status(400).json({ error: `cannot pay — status is ${tx.status}` });
+    if (tx.status !== 'ACCEPTED') return res.status(400).json({ error: `cannot pay — seller must accept first (status is ${tx.status})` });
 
     const callbackUrl = `${process.env.APP_BASE_URL || 'https://your-backend.railway.app'}/api/moolre/webhook`;
 
@@ -74,21 +74,38 @@ async function webhook(req, res) {
     const { reference, status: payStatus, amount } = req.body;
     if (!reference) return res.status(400).json({ error: 'missing reference' });
 
-    // Only mark as PAID when Moolre confirms success
+    // Only mark as FUNDED when Moolre confirms success AND seller has accepted
     if (payStatus === 'SUCCESS' || payStatus === 'PAID') {
       if (useLocal) {
         const t = await local.findTransactionByCode(reference);
-        if (t && t.status === 'PENDING') await local.updateTransactionStatus(t.id, 'PAID');
+        if (!t) return res.status(404).json({ error: 'transaction not found' });
+        if (t.status !== 'ACCEPTED') {
+          console.warn(`Moolre webhook: tx ${reference} is ${t.status}, expected ACCEPTED — ignoring`);
+          return res.json({ ok: true, warning: `transaction status is ${t.status}, not ACCEPTED` });
+        }
+        await local.updateTransactionFields(t.id, {
+          status: 'FUNDED',
+          funded_at: new Date().toISOString(),
+        });
+        await local.addLedgerEntry({
+          transaction_id: t.id,
+          amount: amount || t.amount,
+          type: 'CREDIT',
+          reference: 'Moolre MoMo payment confirmed',
+        });
       } else {
         const r = await db.query('SELECT * FROM transactions WHERE transaction_code=$1', [reference]);
         const t = r.rows[0];
-        if (t && t.status === 'PENDING') {
-          await db.query('UPDATE transactions SET status=$1 WHERE id=$2', ['PAID', t.id]);
-          await db.query(
-            'INSERT INTO ledger(transaction_id, amount, type, reference, created_at) VALUES($1,$2,$3,$4,NOW())',
-            [t.id, amount || t.amount, 'CREDIT', 'Moolre MoMo payment confirmed']
-          );
+        if (!t) return res.status(404).json({ error: 'transaction not found' });
+        if (t.status !== 'ACCEPTED') {
+          console.warn(`Moolre webhook: tx ${reference} is ${t.status}, expected ACCEPTED — ignoring`);
+          return res.json({ ok: true, warning: `transaction status is ${t.status}, not ACCEPTED` });
         }
+        await db.query('UPDATE transactions SET status=$1, funded_at=NOW() WHERE id=$2', ['FUNDED', t.id]);
+        await db.query(
+          'INSERT INTO ledger(transaction_id, amount, type, reference, created_at) VALUES($1,$2,$3,$4,NOW())',
+          [t.id, amount || t.amount, 'CREDIT', 'Moolre MoMo payment confirmed']
+        );
       }
     }
 

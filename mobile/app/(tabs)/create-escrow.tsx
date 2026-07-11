@@ -1,49 +1,93 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
-  KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, StatusBar,
+  View, Text, StyleSheet, StatusBar, Modal, TouchableOpacity,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '@/services/api';
-import { Brand, Colors, Currency } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Brand, Currency } from '@/constants/theme';
+import { KeyboardAwareView } from '@/components/KeyboardAwareView';
+import { GlassCard } from '@/components/GlassCard';
+import { GlassInput } from '@/components/GlassInput';
+import { GlassButton } from '@/components/GlassButton';
+import { ScreenBackground } from '@/components/ScreenBackground';
+import { isGhanaPhone, formatGhanaPhone } from '@/utils/validation';
+import { SPACING, tabBarBottomInset } from '@/constants/layout';
+
+const STEPS = [
+  { icon: 'create-outline' as const, txt: 'Fill in item, amount & seller phone' },
+  { icon: 'share-outline' as const, txt: 'Share the code with your seller' },
+  { icon: 'card-outline' as const, txt: 'Pay to lock funds in escrow' },
+  { icon: 'checkmark-done-outline' as const, txt: 'Confirm delivery to release funds' },
+];
 
 export default function CreateEscrow() {
   const router = useRouter();
-  const scheme = useColorScheme();
-  const c = Colors[scheme ?? 'light'];
+  const insets = useSafeAreaInsets();
   const [item, setItem] = useState('');
   const [amount, setAmount] = useState('');
   const [seller, setSeller] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [touched, setTouched] = useState({ item: false, amount: false, seller: false });
+
+  const amountNum = parseFloat(amount);
+  const amountValid = !isNaN(amountNum) && amountNum > 0;
+  const sellerValid = isGhanaPhone(seller.replace(/\s/g, ''));
+  const itemValid = item.trim().length >= 3;
+  const canSubmit = itemValid && amountValid && sellerValid;
+  const bottomInset = tabBarBottomInset(insets.bottom);
+
+  function validateField(field: 'item' | 'amount' | 'seller') {
+    setTouched((p) => ({ ...p, [field]: true }));
+  }
 
   async function onCreate() {
-    if (!item || !amount || !seller) { setError('All fields are required'); return; }
-    setError(''); setLoading(true);
+    if (!canSubmit) {
+      setError('Please fix the highlighted fields');
+      setTouched({ item: true, amount: true, seller: true });
+      return;
+    }
+    setConfirmOpen(false);
+    setError('');
+    setLoading(true);
     try {
-      const res = await api.post('/escrow/create', { item, amount: parseFloat(amount), seller_phone: seller });
+      const res = await api.post('/escrow/create', {
+        item: item.trim(),
+        amount: amountNum,
+        seller_phone: seller.replace(/\s/g, ''),
+      });
       setSuccess(res.data.transactionCode);
-      setItem(''); setAmount(''); setSeller('');
+      setItem('');
+      setAmount('');
+      setSeller('');
+      setTouched({ item: false, amount: false, seller: false });
     } catch {
-      setError('Could not create escrow. Check seller phone.');
-    } finally { setLoading(false); }
+      setError('Could not create escrow. Check seller phone is registered.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
-    <KeyboardAvoidingView style={[styles.root, { backgroundColor: c.background }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <ScreenBackground>
       <StatusBar barStyle="light-content" />
-      <LinearGradient colors={[Brand.accentDark, Brand.accent]} style={styles.header}>
-        <Ionicons name="lock-closed" size={28} color="#fff" style={{ marginBottom: 8 }} />
+      <LinearGradient colors={[Brand.accentDark, Brand.accent, 'transparent']} style={styles.header}>
+        <View style={styles.headerIcon}>
+          <Ionicons name="lock-closed" size={28} color="#fff" />
+        </View>
         <Text style={styles.headerTitle}>New Escrow</Text>
         <Text style={styles.headerSub}>Lock funds until delivery is confirmed</Text>
       </LinearGradient>
 
-      <ScrollView contentContainerStyle={styles.body}>
+      <KeyboardAwareView
+        bottomInset={bottomInset}
+        contentContainerStyle={styles.scroll}
+      >
         {error ? (
           <View style={styles.errorRow}>
             <Ionicons name="alert-circle" size={15} color={Brand.error} />
@@ -52,122 +96,192 @@ export default function CreateEscrow() {
         ) : null}
 
         {success ? (
-          <BlurView intensity={30} tint="light" style={styles.successCard}>
-            <View style={styles.successIconWrap}>
-              <Ionicons name="checkmark-circle" size={52} color={Brand.success} />
-            </View>
+          <GlassCard tint="dark" style={styles.successCard}>
+            <Ionicons name="checkmark-circle" size={52} color={Brand.success} />
             <Text style={styles.successTitle}>Escrow Created!</Text>
             <Text style={styles.successLabel}>Transaction Code</Text>
             <View style={styles.codeBox}>
               <Text style={styles.codeTxt}>{success}</Text>
             </View>
             <Text style={styles.successHint}>Share this code with your seller to start the trade.</Text>
-            <TouchableOpacity style={styles.doneBtn} onPress={() => { setSuccess(''); router.push('/(tabs)'); }}>
-              <Ionicons name="home-outline" size={16} color="#fff" style={{ marginRight: 6 }} />
-              <Text style={styles.doneBtnTxt}>Back to Home</Text>
-            </TouchableOpacity>
-          </BlurView>
+            <GlassButton
+              label="Back to Home"
+              icon="home-outline"
+              onPress={() => { setSuccess(''); router.push('/(tabs)'); }}
+            />
+          </GlassCard>
         ) : (
           <>
-            {/* Steps card */}
-            <BlurView intensity={30} tint="light" style={styles.stepsCard}>
-              <Text style={styles.stepsTitle}>How it works</Text>
-              {[
-                { icon: 'create-outline' as const, txt: 'Fill in item, amount & seller phone' },
-                { icon: 'share-outline' as const, txt: 'Share the code with your seller' },
-                { icon: 'card-outline' as const, txt: 'Pay to lock funds in escrow' },
-                { icon: 'checkmark-done-outline' as const, txt: 'Confirm delivery to release funds' },
-              ].map((s, i) => (
+            <GlassCard tint="dark" style={styles.stepsCard}>
+              <View style={styles.stepsHeader}>
+                <Ionicons name="information-circle-outline" size={18} color={Brand.primaryLight} />
+                <Text style={styles.stepsTitle}>How it works</Text>
+              </View>
+              {STEPS.map((s, i) => (
                 <View key={i} style={styles.stepRow}>
-                  <View style={styles.stepNum}><Text style={styles.stepNumTxt}>{i + 1}</Text></View>
-                  <Ionicons name={s.icon} size={16} color={Brand.primary} style={{ marginRight: 8 }} />
-                  <Text style={[styles.stepTxt, { color: c.subtext }]}>{s.txt}</Text>
+                  <View style={styles.stepNum}>
+                    <Text style={styles.stepNumTxt}>{i + 1}</Text>
+                  </View>
+                  <View style={styles.stepIconWrap}>
+                    <Ionicons name={s.icon} size={16} color="#fff" />
+                  </View>
+                  <Text style={styles.stepTxt}>{s.txt}</Text>
                 </View>
               ))}
-            </BlurView>
+            </GlassCard>
 
-            {/* Item */}
-            <Text style={[styles.label, { color: c.text }]}>Item / Service</Text>
-            <View style={[styles.inputWrap, { backgroundColor: c.card, borderColor: c.border }]}>
-              <Ionicons name="cube-outline" size={18} color="#9CA3AF" style={styles.inputIcon} />
-              <TextInput
-                style={[styles.input, { color: c.text }]}
+            <GlassCard tint="dark" style={styles.formCard}>
+              <Text style={styles.formTitle}>Escrow Details</Text>
+
+              <Text style={styles.label}>Item / Service</Text>
+              <GlassInput
+                icon="cube-outline"
                 placeholder="e.g. iPhone 15, Laptop repair..."
-                placeholderTextColor="#9CA3AF"
-                value={item} onChangeText={setItem}
+                value={item}
+                onChangeText={setItem}
+                onBlur={() => validateField('item')}
+                error={touched.item && !itemValid}
               />
-            </View>
 
-            {/* Amount */}
-            <Text style={[styles.label, { color: c.text }]}>Amount ({Currency.code})</Text>
-            <View style={[styles.inputWrap, { backgroundColor: c.card, borderColor: c.border }]}>
-              <Text style={styles.currencySymbol}>{Currency.symbol}</Text>
-              <TextInput
-                style={[styles.input, { flex: 1, color: c.text }]}
+              <Text style={styles.label}>Amount ({Currency.code})</Text>
+              <GlassInput
+                prefix={Currency.symbol}
                 placeholder="0.00"
-                placeholderTextColor="#9CA3AF"
                 keyboardType="decimal-pad"
-                value={amount} onChangeText={setAmount}
+                value={amount}
+                onChangeText={setAmount}
+                onBlur={() => validateField('amount')}
+                error={touched.amount && !amountValid}
               />
-            </View>
 
-            {/* Seller phone */}
-            <Text style={[styles.label, { color: c.text }]}>Seller's Phone Number</Text>
-            <View style={[styles.inputWrap, { backgroundColor: c.card, borderColor: c.border }]}>
-              <Ionicons name="call-outline" size={18} color="#9CA3AF" style={styles.inputIcon} />
-              <TextInput
-                style={[styles.input, { color: c.text }]}
-                placeholder="0XX XXX XXXX"
-                placeholderTextColor="#9CA3AF"
+              <Text style={styles.label}>Seller's Phone</Text>
+              <GlassInput
+                icon="call-outline"
+                placeholder="024 XXX XXXX"
                 keyboardType="phone-pad"
-                value={seller} onChangeText={setSeller}
+                value={seller}
+                onChangeText={(t) => setSeller(formatGhanaPhone(t))}
+                onBlur={() => validateField('seller')}
+                maxLength={12}
+                error={touched.seller && !sellerValid}
               />
-            </View>
 
-            <TouchableOpacity style={styles.btn} onPress={onCreate} disabled={loading}>
-              {loading
-                ? <ActivityIndicator color="#fff" />
-                : <>
-                    <Ionicons name="lock-closed" size={18} color="#fff" style={{ marginRight: 8 }} />
-                    <Text style={styles.btnTxt}>Lock Funds in Escrow</Text>
-                  </>
-              }
-            </TouchableOpacity>
+              <GlassButton
+                label="Lock Funds in Escrow"
+                icon="lock-closed"
+                onPress={() => setConfirmOpen(true)}
+                loading={loading}
+                disabled={!canSubmit}
+                style={{ marginTop: 4 }}
+              />
+            </GlassCard>
           </>
         )}
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAwareView>
+
+      <Modal visible={confirmOpen} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <GlassCard tint="dark" style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>Confirm Escrow</Text>
+            <Text style={styles.modalSub}>Review before creating</Text>
+            <View style={styles.confirmRow}>
+              <Text style={styles.confirmLabel}>Item</Text>
+              <Text style={styles.confirmVal}>{item}</Text>
+            </View>
+            <View style={styles.confirmRow}>
+              <Text style={styles.confirmLabel}>Amount</Text>
+              <Text style={styles.confirmVal}>{Currency.symbol}{amountNum.toLocaleString('en-GH')}</Text>
+            </View>
+            <View style={styles.confirmRow}>
+              <Text style={styles.confirmLabel}>Seller</Text>
+              <Text style={styles.confirmVal}>{seller}</Text>
+            </View>
+            <GlassButton label="Confirm & Create" onPress={onCreate} loading={loading} />
+            <TouchableOpacity onPress={() => setConfirmOpen(false)} style={styles.modalCancel}>
+              <Text style={styles.modalCancelTxt}>Go back</Text>
+            </TouchableOpacity>
+          </GlassCard>
+        </View>
+      </Modal>
+    </ScreenBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
-  header: { paddingTop: 56, paddingBottom: 28, paddingHorizontal: 24, alignItems: 'center' },
+  header: {
+    paddingTop: 56,
+    paddingBottom: 28,
+    paddingHorizontal: SPACING.lg,
+    alignItems: 'center',
+  },
+  headerIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
   headerTitle: { fontSize: 24, fontWeight: '800', color: '#fff' },
   headerSub: { color: 'rgba(255,255,255,0.8)', marginTop: 4, fontSize: 13 },
-  body: { padding: 20, paddingBottom: 40 },
-  errorRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEE2E2', padding: 10, borderRadius: 10, marginBottom: 12, gap: 6 },
+  scroll: { paddingTop: SPACING.sm },
+  errorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(239,68,68,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.3)',
+    padding: 10,
+    borderRadius: 10,
+    marginBottom: 12,
+    gap: 6,
+  },
   errorTxt: { color: Brand.error, fontSize: 13, flex: 1 },
-  successCard: { borderRadius: 24, padding: 28, alignItems: 'center', overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(34,197,94,0.3)', marginTop: 12 },
-  successIconWrap: { marginBottom: 12 },
-  successTitle: { fontSize: 20, fontWeight: '800', color: Brand.black, marginBottom: 16 },
-  successLabel: { fontSize: 12, color: '#6B7280', fontWeight: '600' },
-  codeBox: { backgroundColor: Brand.primary, paddingHorizontal: 32, paddingVertical: 14, borderRadius: 16, marginVertical: 8 },
+  successCard: { alignItems: 'center', marginTop: 12, borderColor: 'rgba(34,197,94,0.3)', gap: 8 },
+  successTitle: { fontSize: 20, fontWeight: '800', color: '#fff', marginTop: 8 },
+  successLabel: { fontSize: 12, color: 'rgba(255,255,255,0.5)', fontWeight: '600' },
+  codeBox: {
+    backgroundColor: Brand.primary,
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 16,
+    marginVertical: 8,
+  },
   codeTxt: { fontSize: 28, fontWeight: '900', color: '#fff', letterSpacing: 4 },
-  successHint: { color: '#6B7280', textAlign: 'center', marginTop: 4, marginBottom: 20, fontSize: 13 },
-  doneBtn: { flexDirection: 'row', backgroundColor: Brand.primary, paddingVertical: 12, paddingHorizontal: 28, borderRadius: 24, alignItems: 'center' },
-  doneBtnTxt: { color: '#fff', fontWeight: '700' },
-  stepsCard: { borderRadius: 18, padding: 16, marginBottom: 20, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.5)' },
-  stepsTitle: { fontWeight: '700', fontSize: 13, color: Brand.primary, marginBottom: 12 },
-  stepRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  stepNum: { width: 22, height: 22, borderRadius: 11, backgroundColor: Brand.primary, alignItems: 'center', justifyContent: 'center', marginRight: 8 },
+  successHint: { color: 'rgba(255,255,255,0.55)', textAlign: 'center', marginBottom: 8, fontSize: 13 },
+  stepsCard: { marginBottom: SPACING.md },
+  stepsHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
+  stepsTitle: { fontWeight: '700', fontSize: 15, color: '#fff' },
+  stepRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  stepNum: {
+    width: 22, height: 22, borderRadius: 11,
+    backgroundColor: Brand.primary, alignItems: 'center', justifyContent: 'center', marginRight: 8,
+  },
   stepNumTxt: { color: '#fff', fontSize: 11, fontWeight: '700' },
-  stepTxt: { fontSize: 13, flex: 1 },
-  label: { fontWeight: '600', fontSize: 13, marginBottom: 8 },
-  inputWrap: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 12, marginBottom: 16 },
-  inputIcon: { marginRight: 8 },
-  currencySymbol: { fontWeight: '800', color: Brand.primary, fontSize: 16, marginRight: 8 },
-  input: { flex: 1, paddingVertical: 14, fontSize: 15 },
-  btn: { flexDirection: 'row', backgroundColor: Brand.primary, borderRadius: 14, paddingVertical: 16, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
-  btnTxt: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  stepIconWrap: {
+    width: 28, height: 28, borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center', marginRight: 10,
+  },
+  stepTxt: { fontSize: 13, flex: 1, color: 'rgba(255,255,255,0.75)' },
+  formCard: { marginBottom: SPACING.md },
+  formTitle: { fontSize: 17, fontWeight: '800', color: '#fff', marginBottom: 16 },
+  label: { fontWeight: '600', fontSize: 13, marginBottom: 6, color: 'rgba(255,255,255,0.6)' },
+  modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.55)' },
+  modalSheet: {
+    borderBottomLeftRadius: 0, borderBottomRightRadius: 0,
+    borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24,
+  },
+  modalTitle: { fontSize: 20, fontWeight: '800', color: '#fff', textAlign: 'center' },
+  modalSub: { color: 'rgba(255,255,255,0.6)', textAlign: 'center', marginBottom: 16, fontSize: 13 },
+  confirmRow: {
+    flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10,
+    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)',
+  },
+  confirmLabel: { color: 'rgba(255,255,255,0.5)', fontSize: 13 },
+  confirmVal: { color: '#fff', fontWeight: '700', fontSize: 14, maxWidth: '60%', textAlign: 'right' },
+  modalCancel: { alignItems: 'center', paddingVertical: 12 },
+  modalCancelTxt: { color: 'rgba(255,255,255,0.5)', fontSize: 14 },
 });

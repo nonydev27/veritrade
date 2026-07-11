@@ -1,20 +1,29 @@
 [
   {
     "id": 1,
-    "name": "Default User",
-    "phone": "0594737677",
-    "password_hash": "$2b$10$i09OLVgXmkU6ipFwHQ2z/uXasq5.lcLP20H2kB3I8.5FbrljsJ7ve",
+    "name": "Test Buyer",
+    "phone": "0241234567",
+    "password_hash": "$2b$10$ovAHKEKmvgogTRsQNsNd.uKxS78XnMuB/WEVlKRrJBQJfWUMj1JN.",
     "role": "BUYER",
     "kyc_status": "PENDING",
-    "created_at": "2026-06-21T23:39:53.858Z"
+    "created_at": "2026-07-08T21:44:05.172Z"
   },
   {
     "id": 2,
-    "name": "Kofi Kinata",
-    "phone": "0244790142",
-    "password_hash": "$2b$10$CJU4TYLfsoz9HaIZxMYvkuNmUl/gNRRI4.bQ7YzVPkHnBKwtR0L2C",
+    "name": "Admin User",
+    "phone": "0249999999",
+    "password_hash": "$2b$10$HL7/0DNUJWTAYpfl5wVrj.wCsgZO54jmPfy0hjSKOSaCRSBvLCBu2",
+    "role": "ADMIN",
+    "kyc_status": "VERIFIED",
+    "created_at": "2026-07-08T21:44:05.180Z"
+  },
+  {
+    "id": 3,
+    "name": "New User",
+    "phone": "0241111111",
+    "password_hash": "$2b$10$U.KDyKbkvHOlUKT.FY1uMOpRzuEdddm6YEG/e48bGFXMdVfClN9N2",
     "role": "BUYER",
     "kyc_status": "PENDING",
-    "created_at": "2026-06-22T00:32:32.648Z"
+    "created_at": "2026-07-08T21:44:53.684Z"
   }
 ]
